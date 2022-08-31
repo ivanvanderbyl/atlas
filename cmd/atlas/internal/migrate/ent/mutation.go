@@ -13,8 +13,10 @@ import (
 	"sync"
 	"time"
 
+	"ariga.io/atlas/cmd/atlas/internal/migrate/ent/attempt"
 	"ariga.io/atlas/cmd/atlas/internal/migrate/ent/predicate"
 	"ariga.io/atlas/cmd/atlas/internal/migrate/ent/revision"
+	"ariga.io/atlas/cmd/atlas/internal/migrate/ent/schema"
 	"ariga.io/atlas/sql/migrate"
 
 	"entgo.io/ent"
@@ -29,8 +31,681 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
+	TypeAttempt  = "Attempt"
 	TypeRevision = "Revision"
 )
+
+// AttemptMutation represents an operation that mutates the Attempt nodes in the graph.
+type AttemptMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *int
+	version           *string
+	error             *string
+	operator_version  *string
+	executed_at       *time.Time
+	execution_time    *time.Duration
+	addexecution_time *time.Duration
+	_type             *schema.AttemptType
+	add_type          *schema.AttemptType
+	clearedFields     map[string]struct{}
+	done              bool
+	oldValue          func(context.Context) (*Attempt, error)
+	predicates        []predicate.Attempt
+}
+
+var _ ent.Mutation = (*AttemptMutation)(nil)
+
+// attemptOption allows management of the mutation configuration using functional options.
+type attemptOption func(*AttemptMutation)
+
+// newAttemptMutation creates new mutation for the Attempt entity.
+func newAttemptMutation(c config, op Op, opts ...attemptOption) *AttemptMutation {
+	m := &AttemptMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeAttempt,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withAttemptID sets the ID field of the mutation.
+func withAttemptID(id int) attemptOption {
+	return func(m *AttemptMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Attempt
+		)
+		m.oldValue = func(ctx context.Context) (*Attempt, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Attempt.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withAttempt sets the old Attempt of the mutation.
+func withAttempt(node *Attempt) attemptOption {
+	return func(m *AttemptMutation) {
+		m.oldValue = func(context.Context) (*Attempt, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m AttemptMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m AttemptMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *AttemptMutation) ID() (id int, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *AttemptMutation) IDs(ctx context.Context) ([]int, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Attempt.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetVersion sets the "version" field.
+func (m *AttemptMutation) SetVersion(s string) {
+	m.version = &s
+}
+
+// Version returns the value of the "version" field in the mutation.
+func (m *AttemptMutation) Version() (r string, exists bool) {
+	v := m.version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldVersion returns the old "version" field's value of the Attempt entity.
+// If the Attempt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AttemptMutation) OldVersion(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldVersion: %w", err)
+	}
+	return oldValue.Version, nil
+}
+
+// ResetVersion resets all changes to the "version" field.
+func (m *AttemptMutation) ResetVersion() {
+	m.version = nil
+}
+
+// SetError sets the "error" field.
+func (m *AttemptMutation) SetError(s string) {
+	m.error = &s
+}
+
+// Error returns the value of the "error" field in the mutation.
+func (m *AttemptMutation) Error() (r string, exists bool) {
+	v := m.error
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldError returns the old "error" field's value of the Attempt entity.
+// If the Attempt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AttemptMutation) OldError(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldError is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldError requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldError: %w", err)
+	}
+	return oldValue.Error, nil
+}
+
+// ClearError clears the value of the "error" field.
+func (m *AttemptMutation) ClearError() {
+	m.error = nil
+	m.clearedFields[attempt.FieldError] = struct{}{}
+}
+
+// ErrorCleared returns if the "error" field was cleared in this mutation.
+func (m *AttemptMutation) ErrorCleared() bool {
+	_, ok := m.clearedFields[attempt.FieldError]
+	return ok
+}
+
+// ResetError resets all changes to the "error" field.
+func (m *AttemptMutation) ResetError() {
+	m.error = nil
+	delete(m.clearedFields, attempt.FieldError)
+}
+
+// SetOperatorVersion sets the "operator_version" field.
+func (m *AttemptMutation) SetOperatorVersion(s string) {
+	m.operator_version = &s
+}
+
+// OperatorVersion returns the value of the "operator_version" field in the mutation.
+func (m *AttemptMutation) OperatorVersion() (r string, exists bool) {
+	v := m.operator_version
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldOperatorVersion returns the old "operator_version" field's value of the Attempt entity.
+// If the Attempt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AttemptMutation) OldOperatorVersion(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldOperatorVersion is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldOperatorVersion requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldOperatorVersion: %w", err)
+	}
+	return oldValue.OperatorVersion, nil
+}
+
+// ResetOperatorVersion resets all changes to the "operator_version" field.
+func (m *AttemptMutation) ResetOperatorVersion() {
+	m.operator_version = nil
+}
+
+// SetExecutedAt sets the "executed_at" field.
+func (m *AttemptMutation) SetExecutedAt(t time.Time) {
+	m.executed_at = &t
+}
+
+// ExecutedAt returns the value of the "executed_at" field in the mutation.
+func (m *AttemptMutation) ExecutedAt() (r time.Time, exists bool) {
+	v := m.executed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExecutedAt returns the old "executed_at" field's value of the Attempt entity.
+// If the Attempt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AttemptMutation) OldExecutedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExecutedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExecutedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExecutedAt: %w", err)
+	}
+	return oldValue.ExecutedAt, nil
+}
+
+// ResetExecutedAt resets all changes to the "executed_at" field.
+func (m *AttemptMutation) ResetExecutedAt() {
+	m.executed_at = nil
+}
+
+// SetExecutionTime sets the "execution_time" field.
+func (m *AttemptMutation) SetExecutionTime(t time.Duration) {
+	m.execution_time = &t
+	m.addexecution_time = nil
+}
+
+// ExecutionTime returns the value of the "execution_time" field in the mutation.
+func (m *AttemptMutation) ExecutionTime() (r time.Duration, exists bool) {
+	v := m.execution_time
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldExecutionTime returns the old "execution_time" field's value of the Attempt entity.
+// If the Attempt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AttemptMutation) OldExecutionTime(ctx context.Context) (v time.Duration, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldExecutionTime is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldExecutionTime requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldExecutionTime: %w", err)
+	}
+	return oldValue.ExecutionTime, nil
+}
+
+// AddExecutionTime adds t to the "execution_time" field.
+func (m *AttemptMutation) AddExecutionTime(t time.Duration) {
+	if m.addexecution_time != nil {
+		*m.addexecution_time += t
+	} else {
+		m.addexecution_time = &t
+	}
+}
+
+// AddedExecutionTime returns the value that was added to the "execution_time" field in this mutation.
+func (m *AttemptMutation) AddedExecutionTime() (r time.Duration, exists bool) {
+	v := m.addexecution_time
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetExecutionTime resets all changes to the "execution_time" field.
+func (m *AttemptMutation) ResetExecutionTime() {
+	m.execution_time = nil
+	m.addexecution_time = nil
+}
+
+// SetType sets the "type" field.
+func (m *AttemptMutation) SetType(st schema.AttemptType) {
+	m._type = &st
+	m.add_type = nil
+}
+
+// GetType returns the value of the "type" field in the mutation.
+func (m *AttemptMutation) GetType() (r schema.AttemptType, exists bool) {
+	v := m._type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldType returns the old "type" field's value of the Attempt entity.
+// If the Attempt object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AttemptMutation) OldType(ctx context.Context) (v schema.AttemptType, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldType: %w", err)
+	}
+	return oldValue.Type, nil
+}
+
+// AddType adds st to the "type" field.
+func (m *AttemptMutation) AddType(st schema.AttemptType) {
+	if m.add_type != nil {
+		*m.add_type += st
+	} else {
+		m.add_type = &st
+	}
+}
+
+// AddedType returns the value that was added to the "type" field in this mutation.
+func (m *AttemptMutation) AddedType() (r schema.AttemptType, exists bool) {
+	v := m.add_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetType resets all changes to the "type" field.
+func (m *AttemptMutation) ResetType() {
+	m._type = nil
+	m.add_type = nil
+}
+
+// Where appends a list predicates to the AttemptMutation builder.
+func (m *AttemptMutation) Where(ps ...predicate.Attempt) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// Op returns the operation name.
+func (m *AttemptMutation) Op() Op {
+	return m.op
+}
+
+// Type returns the node type of this mutation (Attempt).
+func (m *AttemptMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *AttemptMutation) Fields() []string {
+	fields := make([]string, 0, 6)
+	if m.version != nil {
+		fields = append(fields, attempt.FieldVersion)
+	}
+	if m.error != nil {
+		fields = append(fields, attempt.FieldError)
+	}
+	if m.operator_version != nil {
+		fields = append(fields, attempt.FieldOperatorVersion)
+	}
+	if m.executed_at != nil {
+		fields = append(fields, attempt.FieldExecutedAt)
+	}
+	if m.execution_time != nil {
+		fields = append(fields, attempt.FieldExecutionTime)
+	}
+	if m._type != nil {
+		fields = append(fields, attempt.FieldType)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *AttemptMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case attempt.FieldVersion:
+		return m.Version()
+	case attempt.FieldError:
+		return m.Error()
+	case attempt.FieldOperatorVersion:
+		return m.OperatorVersion()
+	case attempt.FieldExecutedAt:
+		return m.ExecutedAt()
+	case attempt.FieldExecutionTime:
+		return m.ExecutionTime()
+	case attempt.FieldType:
+		return m.GetType()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *AttemptMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case attempt.FieldVersion:
+		return m.OldVersion(ctx)
+	case attempt.FieldError:
+		return m.OldError(ctx)
+	case attempt.FieldOperatorVersion:
+		return m.OldOperatorVersion(ctx)
+	case attempt.FieldExecutedAt:
+		return m.OldExecutedAt(ctx)
+	case attempt.FieldExecutionTime:
+		return m.OldExecutionTime(ctx)
+	case attempt.FieldType:
+		return m.OldType(ctx)
+	}
+	return nil, fmt.Errorf("unknown Attempt field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AttemptMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case attempt.FieldVersion:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetVersion(v)
+		return nil
+	case attempt.FieldError:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetError(v)
+		return nil
+	case attempt.FieldOperatorVersion:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetOperatorVersion(v)
+		return nil
+	case attempt.FieldExecutedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExecutedAt(v)
+		return nil
+	case attempt.FieldExecutionTime:
+		v, ok := value.(time.Duration)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetExecutionTime(v)
+		return nil
+	case attempt.FieldType:
+		v, ok := value.(schema.AttemptType)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetType(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Attempt field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *AttemptMutation) AddedFields() []string {
+	var fields []string
+	if m.addexecution_time != nil {
+		fields = append(fields, attempt.FieldExecutionTime)
+	}
+	if m.add_type != nil {
+		fields = append(fields, attempt.FieldType)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *AttemptMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case attempt.FieldExecutionTime:
+		return m.AddedExecutionTime()
+	case attempt.FieldType:
+		return m.AddedType()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AttemptMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case attempt.FieldExecutionTime:
+		v, ok := value.(time.Duration)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddExecutionTime(v)
+		return nil
+	case attempt.FieldType:
+		v, ok := value.(schema.AttemptType)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddType(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Attempt numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *AttemptMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(attempt.FieldError) {
+		fields = append(fields, attempt.FieldError)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *AttemptMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *AttemptMutation) ClearField(name string) error {
+	switch name {
+	case attempt.FieldError:
+		m.ClearError()
+		return nil
+	}
+	return fmt.Errorf("unknown Attempt nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *AttemptMutation) ResetField(name string) error {
+	switch name {
+	case attempt.FieldVersion:
+		m.ResetVersion()
+		return nil
+	case attempt.FieldError:
+		m.ResetError()
+		return nil
+	case attempt.FieldOperatorVersion:
+		m.ResetOperatorVersion()
+		return nil
+	case attempt.FieldExecutedAt:
+		m.ResetExecutedAt()
+		return nil
+	case attempt.FieldExecutionTime:
+		m.ResetExecutionTime()
+		return nil
+	case attempt.FieldType:
+		m.ResetType()
+		return nil
+	}
+	return fmt.Errorf("unknown Attempt field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *AttemptMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *AttemptMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *AttemptMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *AttemptMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *AttemptMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *AttemptMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *AttemptMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown Attempt unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *AttemptMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown Attempt edge %s", name)
+}
 
 // RevisionMutation represents an operation that mutates the Revision nodes in the graph.
 type RevisionMutation struct {

@@ -8,11 +8,13 @@ package ent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
 	"ariga.io/atlas/cmd/atlas/internal/migrate/ent/migrate"
 
+	"ariga.io/atlas/cmd/atlas/internal/migrate/ent/attempt"
 	"ariga.io/atlas/cmd/atlas/internal/migrate/ent/revision"
 
 	"entgo.io/ent/dialect"
@@ -24,6 +26,8 @@ type Client struct {
 	config
 	// Schema is the client for creating, migrating and dropping schema.
 	Schema *migrate.Schema
+	// Attempt is the client for interacting with the Attempt builders.
+	Attempt *AttemptClient
 	// Revision is the client for interacting with the Revision builders.
 	Revision *RevisionClient
 }
@@ -39,6 +43,7 @@ func NewClient(opts ...Option) *Client {
 
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
+	c.Attempt = NewAttemptClient(c.config)
 	c.Revision = NewRevisionClient(c.config)
 }
 
@@ -62,7 +67,7 @@ func Open(driverName, dataSourceName string, options ...Option) (*Client, error)
 // is used until the transaction is committed or rolled back.
 func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	if _, ok := c.driver.(*txDriver); ok {
-		return nil, fmt.Errorf("ent: cannot start a transaction within a transaction")
+		return nil, errors.New("ent: cannot start a transaction within a transaction")
 	}
 	tx, err := newTx(ctx, c.driver)
 	if err != nil {
@@ -73,6 +78,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	return &Tx{
 		ctx:      ctx,
 		config:   cfg,
+		Attempt:  NewAttemptClient(cfg),
 		Revision: NewRevisionClient(cfg),
 	}, nil
 }
@@ -80,7 +86,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 // BeginTx returns a transactional client with specified options.
 func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) {
 	if _, ok := c.driver.(*txDriver); ok {
-		return nil, fmt.Errorf("ent: cannot start a transaction within a transaction")
+		return nil, errors.New("ent: cannot start a transaction within a transaction")
 	}
 	tx, err := c.driver.(interface {
 		BeginTx(context.Context, *sql.TxOptions) (dialect.Tx, error)
@@ -93,6 +99,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	return &Tx{
 		ctx:      ctx,
 		config:   cfg,
+		Attempt:  NewAttemptClient(cfg),
 		Revision: NewRevisionClient(cfg),
 	}, nil
 }
@@ -100,7 +107,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 // Debug returns a new debug-client. It's used to get verbose logging on specific operations.
 //
 //	client.Debug().
-//		Revision.
+//		Attempt.
 //		Query().
 //		Count(ctx)
 func (c *Client) Debug() *Client {
@@ -122,7 +129,98 @@ func (c *Client) Close() error {
 // Use adds the mutation hooks to all the entity clients.
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
+	c.Attempt.Use(hooks...)
 	c.Revision.Use(hooks...)
+}
+
+// AttemptClient is a client for the Attempt schema.
+type AttemptClient struct {
+	config
+}
+
+// NewAttemptClient returns a client for the Attempt from the given config.
+func NewAttemptClient(c config) *AttemptClient {
+	return &AttemptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `attempt.Hooks(f(g(h())))`.
+func (c *AttemptClient) Use(hooks ...Hook) {
+	c.hooks.Attempt = append(c.hooks.Attempt, hooks...)
+}
+
+// Create returns a builder for creating a Attempt entity.
+func (c *AttemptClient) Create() *AttemptCreate {
+	mutation := newAttemptMutation(c.config, OpCreate)
+	return &AttemptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Attempt entities.
+func (c *AttemptClient) CreateBulk(builders ...*AttemptCreate) *AttemptCreateBulk {
+	return &AttemptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Attempt.
+func (c *AttemptClient) Update() *AttemptUpdate {
+	mutation := newAttemptMutation(c.config, OpUpdate)
+	return &AttemptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AttemptClient) UpdateOne(a *Attempt) *AttemptUpdateOne {
+	mutation := newAttemptMutation(c.config, OpUpdateOne, withAttempt(a))
+	return &AttemptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AttemptClient) UpdateOneID(id int) *AttemptUpdateOne {
+	mutation := newAttemptMutation(c.config, OpUpdateOne, withAttemptID(id))
+	return &AttemptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Attempt.
+func (c *AttemptClient) Delete() *AttemptDelete {
+	mutation := newAttemptMutation(c.config, OpDelete)
+	return &AttemptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AttemptClient) DeleteOne(a *Attempt) *AttemptDeleteOne {
+	return c.DeleteOneID(a.ID)
+}
+
+// DeleteOne returns a builder for deleting the given entity by its id.
+func (c *AttemptClient) DeleteOneID(id int) *AttemptDeleteOne {
+	builder := c.Delete().Where(attempt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AttemptDeleteOne{builder}
+}
+
+// Query returns a query builder for Attempt.
+func (c *AttemptClient) Query() *AttemptQuery {
+	return &AttemptQuery{
+		config: c.config,
+	}
+}
+
+// Get returns a Attempt entity by its id.
+func (c *AttemptClient) Get(ctx context.Context, id int) (*Attempt, error) {
+	return c.Query().Where(attempt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AttemptClient) GetX(ctx context.Context, id int) *Attempt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *AttemptClient) Hooks() []Hook {
+	return c.hooks.Attempt
 }
 
 // RevisionClient is a client for the Revision schema.

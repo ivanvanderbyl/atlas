@@ -10,5 +10,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// Attempt is the predicate function for attempt builders.
+type Attempt func(*sql.Selector)
+
 // Revision is the predicate function for revision builders.
 type Revision func(*sql.Selector)

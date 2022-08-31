@@ -423,18 +423,6 @@ type (
 	}
 )
 
-// SetDescription sets the "description" field.
-func (u *RevisionUpsert) SetDescription(v string) *RevisionUpsert {
-	u.Set(revision.FieldDescription, v)
-	return u
-}
-
-// UpdateDescription sets the "description" field to the value that was provided on create.
-func (u *RevisionUpsert) UpdateDescription() *RevisionUpsert {
-	u.SetExcluded(revision.FieldDescription)
-	return u
-}
-
 // SetType sets the "type" field.
 func (u *RevisionUpsert) SetType(v migrate.RevisionType) *RevisionUpsert {
 	u.Set(revision.FieldType, v)
@@ -486,18 +474,6 @@ func (u *RevisionUpsert) UpdateTotal() *RevisionUpsert {
 // AddTotal adds v to the "total" field.
 func (u *RevisionUpsert) AddTotal(v int) *RevisionUpsert {
 	u.Add(revision.FieldTotal, v)
-	return u
-}
-
-// SetExecutedAt sets the "executed_at" field.
-func (u *RevisionUpsert) SetExecutedAt(v time.Time) *RevisionUpsert {
-	u.Set(revision.FieldExecutedAt, v)
-	return u
-}
-
-// UpdateExecutedAt sets the "executed_at" field to the value that was provided on create.
-func (u *RevisionUpsert) UpdateExecutedAt() *RevisionUpsert {
-	u.SetExcluded(revision.FieldExecutedAt)
 	return u
 }
 
@@ -633,20 +609,6 @@ func (u *RevisionUpsertOne) Update(set func(*RevisionUpsert)) *RevisionUpsertOne
 	return u
 }
 
-// SetDescription sets the "description" field.
-func (u *RevisionUpsertOne) SetDescription(v string) *RevisionUpsertOne {
-	return u.Update(func(s *RevisionUpsert) {
-		s.SetDescription(v)
-	})
-}
-
-// UpdateDescription sets the "description" field to the value that was provided on create.
-func (u *RevisionUpsertOne) UpdateDescription() *RevisionUpsertOne {
-	return u.Update(func(s *RevisionUpsert) {
-		s.UpdateDescription()
-	})
-}
-
 // SetType sets the "type" field.
 func (u *RevisionUpsertOne) SetType(v migrate.RevisionType) *RevisionUpsertOne {
 	return u.Update(func(s *RevisionUpsert) {
@@ -707,20 +669,6 @@ func (u *RevisionUpsertOne) AddTotal(v int) *RevisionUpsertOne {
 func (u *RevisionUpsertOne) UpdateTotal() *RevisionUpsertOne {
 	return u.Update(func(s *RevisionUpsert) {
 		s.UpdateTotal()
-	})
-}
-
-// SetExecutedAt sets the "executed_at" field.
-func (u *RevisionUpsertOne) SetExecutedAt(v time.Time) *RevisionUpsertOne {
-	return u.Update(func(s *RevisionUpsert) {
-		s.SetExecutedAt(v)
-	})
-}
-
-// UpdateExecutedAt sets the "executed_at" field to the value that was provided on create.
-func (u *RevisionUpsertOne) UpdateExecutedAt() *RevisionUpsertOne {
-	return u.Update(func(s *RevisionUpsert) {
-		s.UpdateExecutedAt()
 	})
 }
 
@@ -993,7 +941,6 @@ func (u *RevisionUpsertBulk) UpdateNewValues() *RevisionUpsertBulk {
 		for _, b := range u.create.builders {
 			if _, exists := b.mutation.ID(); exists {
 				s.SetIgnore(revision.FieldID)
-				return
 			}
 			if _, exists := b.mutation.Description(); exists {
 				s.SetIgnore(revision.FieldDescription)
@@ -1031,20 +978,6 @@ func (u *RevisionUpsertBulk) Update(set func(*RevisionUpsert)) *RevisionUpsertBu
 		set(&RevisionUpsert{UpdateSet: update})
 	}))
 	return u
-}
-
-// SetDescription sets the "description" field.
-func (u *RevisionUpsertBulk) SetDescription(v string) *RevisionUpsertBulk {
-	return u.Update(func(s *RevisionUpsert) {
-		s.SetDescription(v)
-	})
-}
-
-// UpdateDescription sets the "description" field to the value that was provided on create.
-func (u *RevisionUpsertBulk) UpdateDescription() *RevisionUpsertBulk {
-	return u.Update(func(s *RevisionUpsert) {
-		s.UpdateDescription()
-	})
 }
 
 // SetType sets the "type" field.
@@ -1107,20 +1040,6 @@ func (u *RevisionUpsertBulk) AddTotal(v int) *RevisionUpsertBulk {
 func (u *RevisionUpsertBulk) UpdateTotal() *RevisionUpsertBulk {
 	return u.Update(func(s *RevisionUpsert) {
 		s.UpdateTotal()
-	})
-}
-
-// SetExecutedAt sets the "executed_at" field.
-func (u *RevisionUpsertBulk) SetExecutedAt(v time.Time) *RevisionUpsertBulk {
-	return u.Update(func(s *RevisionUpsert) {
-		s.SetExecutedAt(v)
-	})
-}
-
-// UpdateExecutedAt sets the "executed_at" field to the value that was provided on create.
-func (u *RevisionUpsertBulk) UpdateExecutedAt() *RevisionUpsertBulk {
-	return u.Update(func(s *RevisionUpsert) {
-		s.UpdateExecutedAt()
 	})
 }
 

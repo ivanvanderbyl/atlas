@@ -7,6 +7,7 @@
 package ent
 
 import (
+	"ariga.io/atlas/cmd/atlas/internal/migrate/ent/attempt"
 	"ariga.io/atlas/cmd/atlas/internal/migrate/ent/revision"
 	"ariga.io/atlas/cmd/atlas/internal/migrate/ent/schema"
 	"ariga.io/atlas/sql/migrate"
@@ -16,6 +17,12 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	attemptFields := schema.Attempt{}.Fields()
+	_ = attemptFields
+	// attemptDescType is the schema descriptor for type field.
+	attemptDescType := attemptFields[5].Descriptor()
+	// attempt.TypeValidator is a validator for the "type" field. It is called by the builders before save.
+	attempt.TypeValidator = attemptDescType.Validators[0].(func(uint) error)
 	revisionFields := schema.Revision{}.Fields()
 	_ = revisionFields
 	// revisionDescType is the schema descriptor for type field.

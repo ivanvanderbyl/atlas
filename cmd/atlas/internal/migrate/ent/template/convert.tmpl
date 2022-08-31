@@ -8,6 +8,7 @@
 import "ariga.io/atlas/sql/migrate"
 
 {{ range $n := $.Nodes }}
+    {{/* Add method to revision builder to accept a migrate.Revision struct and set its values on the builder. */}}
     {{ if eq $n.Name "Revision" }}
         {{ $builder := $n.CreateName }}
         {{ $receiver := receiver $builder }}

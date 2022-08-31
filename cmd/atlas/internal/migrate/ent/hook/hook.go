@@ -13,6 +13,19 @@ import (
 	"ariga.io/atlas/cmd/atlas/internal/migrate/ent"
 )
 
+// The AttemptFunc type is an adapter to allow the use of ordinary
+// function as Attempt mutator.
+type AttemptFunc func(context.Context, *ent.AttemptMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AttemptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	mv, ok := m.(*ent.AttemptMutation)
+	if !ok {
+		return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AttemptMutation", m)
+	}
+	return f(ctx, mv)
+}
+
 // The RevisionFunc type is an adapter to allow the use of ordinary
 // function as Revision mutator.
 type RevisionFunc func(context.Context, *ent.RevisionMutation) (ent.Value, error)

@@ -20,7 +20,9 @@ import (
 
 	"ariga.io/atlas/cmd/atlas/internal/lint"
 	entmigrate "ariga.io/atlas/cmd/atlas/internal/migrate"
+	"ariga.io/atlas/cmd/atlas/internal/migrate/ent"
 	"ariga.io/atlas/cmd/atlas/internal/migrate/ent/revision"
+	sch "ariga.io/atlas/cmd/atlas/internal/migrate/ent/schema"
 	"ariga.io/atlas/sql/migrate"
 	"ariga.io/atlas/sql/schema"
 	"ariga.io/atlas/sql/sqlcheck"
@@ -310,16 +312,15 @@ func CmdMigrateApplyRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	var rrw migrate.RevisionReadWriter
-	rrw, err = entRevisions(cmd.Context(), c)
+	entClient, err := entRevisions(cmd.Context(), c)
 	if err != nil {
 		return err
 	}
-	if err := rrw.(*entmigrate.EntRevisions).Migrate(cmd.Context()); err != nil {
+	if err := entClient.Migrate(cmd.Context()); err != nil {
 		return err
 	}
-	// Determine pending files and lock the database while working.
-	ex, err := migrate.NewExecutor(c.Driver, dir, rrw, executorOptions(l)...)
+	// Determine pending files.
+	ex, err := migrate.NewExecutor(c.Driver, dir, entClient, executorOptions(l)...)
 	if err != nil {
 		return err
 	}
@@ -338,7 +339,7 @@ func CmdMigrateApplyRun(cmd *cobra.Command, args []string) error {
 		}
 		pending = pending[:n]
 	}
-	revs, err := rrw.ReadRevisions(cmd.Context())
+	revs, err := entClient.ReadRevisions(cmd.Context())
 	if err != nil {
 		return err
 	}
@@ -346,8 +347,11 @@ func CmdMigrateApplyRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var (
-		mux = tx{c: c, rrw: rrw}
-		drv migrate.Driver
+		mux           = tx{c: c, rrw: entClient}
+		drv           migrate.Driver
+		rrw           migrate.RevisionReadWriter = entClient
+		attempts      []*ent.AttemptCreate
+		cliVersion, _ = parse(version)
 	)
 	for _, f := range pending {
 		drv, rrw, err = mux.driver(cmd.Context())
@@ -358,18 +362,55 @@ func CmdMigrateApplyRun(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		if err := mux.mayRollback(ex.Execute(cmd.Context(), f)); err != nil {
+		// We will attempt to apply ths file, log it.
+		attempt := entClient.Attempt.Create().
+			SetVersion(f.Version()).
+			SetOperatorVersion(cliVersion).
+			SetExecutedAt(time.Now())
+		// Try to apply the file.
+		if err := ex.Execute(cmd.Context(), f); err != nil {
+			// If the attempt has an error, log it.
+			attempt.SetError(err.Error()).SetTypeFlag(sch.AttemptTypeError).SetExecutionTimeFromStart()
+			if err2 := mux.mayRollback(); err2 != nil {
+				err = fmt.Errorf("%v: %w", err2, err)
+			} else {
+				// Mark rolled back attempts as such.
+				attempt.SetTypeFlag(sch.AttemptTypeRolledBack)
+				if MigrateFlags.Apply.TxMode == txModeAll {
+					for _, a := range attempts {
+						a.SetTypeFlag(sch.AttemptTypeRolledBack)
+					}
+				}
+			}
 			return err
 		}
+		attempt.SetTypeFlag(sch.AttemptTypeSuccess)
 		if err := mux.mayCommit(); err != nil {
+			attempt.SetError(err.Error()).SetExecutionTimeFromStart()
+			// Mark rolled back attempts as such.
+			attempt.SetTypeFlag(sch.AttemptTypeRolledBack)
+			if MigrateFlags.Apply.TxMode == txModeAll {
+				for _, a := range attempts {
+					a.SetTypeFlag(sch.AttemptTypeRolledBack)
+				}
+			}
 			return err
 		}
+		attempts = append(attempts, attempt)
 	}
 	if err := mux.commit(); err != nil {
+		switch MigrateFlags.Apply.TxMode {
+		case txModeFile:
+			attempts[len(attempts)-1].SetTypeFlag(sch.AttemptTypeRolledBack)
+		case txModeAll:
+			for _, a := range attempts {
+				a.SetTypeFlag(sch.AttemptTypeRolledBack)
+			}
+		}
 		return err
 	}
 	l.Log(migrate.LogDone{})
-	return mux.commit()
+	return entClient.Attempt.CreateBulk(attempts...).Exec(cmd.Context())
 }
 
 func entRevisions(ctx context.Context, c *sqlclient.Client) (*entmigrate.EntRevisions, error) {
@@ -428,13 +469,11 @@ func (tx *tx) driver(ctx context.Context) (migrate.Driver, migrate.RevisionReadW
 }
 
 // mayRollback may roll back a transaction depending on the given transaction mode.
-func (tx *tx) mayRollback(err error) error {
-	if tx.tx != nil && err != nil {
-		if err2 := tx.tx.Rollback(); err2 != nil {
-			err = fmt.Errorf("%v: %w", err2, err)
-		}
+func (tx *tx) mayRollback() error {
+	if tx.tx != nil {
+		return tx.tx.Rollback()
 	}
-	return err
+	return nil
 }
 
 // mayCommit may commit a transaction depending on the given transaction mode.

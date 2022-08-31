@@ -13,6 +13,22 @@ import (
 )
 
 var (
+	// AtlasMigrationAttemptsColumns holds the columns for the "atlas_migration_attempts" table.
+	AtlasMigrationAttemptsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "version", Type: field.TypeString},
+		{Name: "error", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "operator_version", Type: field.TypeString},
+		{Name: "executed_at", Type: field.TypeTime},
+		{Name: "execution_time", Type: field.TypeInt64},
+		{Name: "type", Type: field.TypeUint},
+	}
+	// AtlasMigrationAttemptsTable holds the schema information for the "atlas_migration_attempts" table.
+	AtlasMigrationAttemptsTable = &schema.Table{
+		Name:       "atlas_migration_attempts",
+		Columns:    AtlasMigrationAttemptsColumns,
+		PrimaryKey: []*schema.Column{AtlasMigrationAttemptsColumns[0]},
+	}
 	// AtlasSchemaRevisionsColumns holds the columns for the "atlas_schema_revisions" table.
 	AtlasSchemaRevisionsColumns = []*schema.Column{
 		{Name: "version", Type: field.TypeString},
@@ -35,11 +51,15 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		AtlasMigrationAttemptsTable,
 		AtlasSchemaRevisionsTable,
 	}
 )
 
 func init() {
+	AtlasMigrationAttemptsTable.Annotation = &entsql.Annotation{
+		Table: "atlas_migration_attempts",
+	}
 	AtlasSchemaRevisionsTable.Annotation = &entsql.Annotation{
 		Table: "atlas_schema_revisions",
 	}

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"ariga.io/atlas/sql/migrate"
-
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/schema"

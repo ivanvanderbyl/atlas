@@ -18,6 +18,8 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// Attempt is the client for interacting with the Attempt builders.
+	Attempt *AttemptClient
 	// Revision is the client for interacting with the Revision builders.
 	Revision *RevisionClient
 
@@ -155,6 +157,7 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.Attempt = NewAttemptClient(tx.config)
 	tx.Revision = NewRevisionClient(tx.config)
 }
 
@@ -165,7 +168,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: Revision.QueryXXX(), the query will be executed
+// applies a query, for example: Attempt.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.
@@ -204,12 +207,12 @@ func (*txDriver) Commit() error { return nil }
 func (*txDriver) Rollback() error { return nil }
 
 // Exec calls tx.Exec.
-func (tx *txDriver) Exec(ctx context.Context, query string, args, v interface{}) error {
+func (tx *txDriver) Exec(ctx context.Context, query string, args, v any) error {
 	return tx.tx.Exec(ctx, query, args, v)
 }
 
 // Query calls tx.Query.
-func (tx *txDriver) Query(ctx context.Context, query string, args, v interface{}) error {
+func (tx *txDriver) Query(ctx context.Context, query string, args, v any) error {
 	return tx.tx.Query(ctx, query, args, v)
 }
 
@@ -217,9 +220,9 @@ var _ dialect.Driver = (*txDriver)(nil)
 
 // ExecContext allows calling the underlying ExecContext method of the transaction if it is supported by it.
 // See, database/sql#Tx.ExecContext for more information.
-func (tx *txDriver) ExecContext(ctx context.Context, query string, args ...interface{}) (stdsql.Result, error) {
+func (tx *txDriver) ExecContext(ctx context.Context, query string, args ...any) (stdsql.Result, error) {
 	ex, ok := tx.tx.(interface {
-		ExecContext(context.Context, string, ...interface{}) (stdsql.Result, error)
+		ExecContext(context.Context, string, ...any) (stdsql.Result, error)
 	})
 	if !ok {
 		return nil, fmt.Errorf("Tx.ExecContext is not supported")
@@ -229,9 +232,9 @@ func (tx *txDriver) ExecContext(ctx context.Context, query string, args ...inter
 
 // QueryContext allows calling the underlying QueryContext method of the transaction if it is supported by it.
 // See, database/sql#Tx.QueryContext for more information.
-func (tx *txDriver) QueryContext(ctx context.Context, query string, args ...interface{}) (*stdsql.Rows, error) {
+func (tx *txDriver) QueryContext(ctx context.Context, query string, args ...any) (*stdsql.Rows, error) {
 	q, ok := tx.tx.(interface {
-		QueryContext(context.Context, string, ...interface{}) (*stdsql.Rows, error)
+		QueryContext(context.Context, string, ...any) (*stdsql.Rows, error)
 	})
 	if !ok {
 		return nil, fmt.Errorf("Tx.QueryContext is not supported")

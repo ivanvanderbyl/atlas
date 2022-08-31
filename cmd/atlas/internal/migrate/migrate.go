@@ -24,9 +24,10 @@ const DefaultRevisionSchema = "atlas_schema_revisions"
 type (
 	// EntRevisions provides implementation for the migrate.RevisionReadWriter interface.
 	EntRevisions struct {
-		ac     *sqlclient.Client // underlying Atlas client
-		ec     *ent.Client       // underlying Ent client
-		schema string            // name of the schema the revision table resides in
+		Attempt *ent.AttemptClient
+		ac      *sqlclient.Client // underlying Atlas client
+		ec      *ent.Client       // underlying Ent client
+		schema  string            // name of the schema the revision table resides in
 	}
 
 	// Option allows to configure EntRevisions by using functional arguments.
@@ -61,10 +62,14 @@ func NewEntRevisions(ctx context.Context, ac *sqlclient.Client, opts ...Option) 
 			}
 		}
 		// Tell Ent to operate on that schema.
-		entopts = append(entopts, ent.AlternateSchema(ent.SchemaConfig{Revision: r.schema}))
+		entopts = append(entopts, ent.AlternateSchema(ent.SchemaConfig{
+			Revision: r.schema,
+			Attempt:  r.schema,
+		}))
 	}
 	// Instantiate the Ent client and migrate the revision schema.
 	r.ec = ent.NewClient(entopts...)
+	r.Attempt = r.ec.Attempt
 	return r, nil
 }
 
